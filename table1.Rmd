@@ -1,0 +1,122 @@
+---
+title: "Summary table by table1 and gtsummary"
+author: "Alex Shen"
+date: "2023-03-09"
+output: 
+  html_document:
+    theme: cerulean
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+It is a standard practice to have a "table 1" in any scientific paper, presenting descriptive baseline characteristics as stratified by study treatment. The package **table1** and **gtsummary** both can serve this purpose. The following is trying to compare these two method, based on dirty data, or clean data.
+
+- [table1](https://cran.r-project.org/web/packages/table1/vignettes/table1-examples.html)
+- [gtsummary](https://horizon.documentation.ird.fr/exl-doc/pleins_textes/2021-09/010082695.pdf)
+
+<br/>
+
+## Summary on Dirty Data
+
+### Loading package and dataset
+```{r, include =F}
+# install.packages("table1")
+# install.packages("gtsummary")
+library(table1)
+library(survival)
+library(tidyverse)
+library(gtsummary)
+```
+
+
+```{r}
+data(pbc)
+dat <- subset(survival::pbc, !is.na(trt)) #remove non-randomized
+dat <-as_tibble(dat)
+dat
+```
+
+<br/>
+
+### Quick summary by table1
+```{r}
+table1(~ age + sex + stage + edema + spiders + hepato + ascites +
+         platelet | trt, data=dat)
+```
+
+<br/>
+
+### Quick summary by gtsummary
+```{r}
+dat |> select(trt, age, sex, stage, edema, spiders, hepato, ascites,platelet) |> tbl_summary(by = trt) |> add_overall() |> bold_labels()
+```
+<br/>
+
+Both table1 and gtsummary produce straightforward summary table. However,
+
+- treatment are labels as 1 and 2, which is not meaningful
+- stage, spider, hepato, ascites are summarized inappropriately as numerical variables especially in table1 package. However seems like this can be fixed automatically in gtsummary:-)
+
+<br/>
+
+## Summary on Clean Data
+
+### Fixing the format problem
+```{r}
+#Looking at the data structure
+str(dat) 
+
+#Ensure appropriate format by factor, as.logic
+dat$trt     <- factor(dat$trt, levels=1:2, labels=c("D-penicillamine", "Placebo"))
+dat$sex     <- factor(dat$sex, levels=c("m", "f"), labels=c("Male", "Female"))
+dat$stage   <- factor(dat$stage, levels=1:4, labels=paste("Stage", 1:4))
+dat$edema   <- factor(dat$edema, levels=c(0, 0.5, 1),
+                      labels=c("No edema",
+                               "Untreated or successfully treated",
+                               "Edema despite diuretic therapy"))
+dat$spiders <- as.logical(dat$spiders)
+dat$hepato  <- as.logical(dat$hepato)
+dat$ascites <- as.logical(dat$ascites)
+
+#Add labels
+label(dat$age) <- "Age"
+label(dat$sex) <- "Sex"
+label(dat$stage) <- "Disease Stage"
+label(dat$edema) <-"Presense of Edema"
+label(dat$spiders) <-"Presense of Spider"
+label(dat$hepato) <-"Presense of Hepato"
+label(dat$ascites) <-"Presense of Ascites"
+label(dat$platelet) <-"Platelete Counts"
+
+#Add units to continuous variables
+units(dat$age) <- "Years"
+```
+<br/>
+
+### Summary by table1
+```{r, }
+caption <- "Baseline demographics and disease characteristics"
+footnote <- "Data cut off by xxx"
+
+table1(~ age + sex + stage + edema + spiders + hepato + ascites +
+         platelet | trt, data=dat, caption=caption, footnote = footnote, topclass="Rtable1-zebra")
+```
+<br/>
+
+### Summary by gtsummary
+
+```{r}
+dat |> select(trt, age, sex, stage, edema, spiders, hepato, ascites,platelet) |> tbl_summary(by = trt, statistic = list(
+  all_continuous() ~ "{mean}({sd})",
+  all_categorical() ~ "{n}/{N} ({p}%)"
+),
+digits = all_continuous() ~ 1) |> add_overall() |> bold_labels()
+```
+
+
